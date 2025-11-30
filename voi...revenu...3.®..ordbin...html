@@ -1,0 +1,566 @@
+<html lang="fr"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ordinateur voiture bib studio Uni V7.2</title>
+    <style>
+        :root { --bg: #000; --panel: #111; --text: #ccc; --accent: #00ff9d; --danger: #ff003c; --select: #005f3c; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; display: flex; flex-direction: column; user-select: none; -webkit-user-select: none; }
+        
+        /* PROTECTION ECRAN (Cache le chargement) */
+        #boot-screen { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #000; z-index: 9999; display: flex; 
+            flex-direction: column; align-items: center; justify-content: center; 
+            transition: opacity 0.8s ease-out; 
+            /* CORRECTION: pointer-events: none; a été retiré d'ici pour être géré par JS */
+        }
+        .boot-logo { font-size: 3rem; margin-bottom: 20px; animation: pulse 2s infinite; }
+        .boot-text { font-family: monospace; color: var(--accent); font-size: 0.9rem; }
+        @keyframes pulse { 0% { opacity: 0.5; transform: scale(0.95); } 50% { opacity: 1; transform: scale(1.05); } 100% { opacity: 0.5; transform: scale(0.95); } }
+
+        /* HEADER */
+        header { background: rgba(10, 10, 10, 0.9); padding: 0 20px; height: 45px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; z-index: 100; }
+        .sys-name { font-weight: 700; letter-spacing: 2px; color: #fff; font-size: 0.8rem; display: flex; align-items: center; gap: 8px; }
+        .sys-ind { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 8px var(--accent); }
+
+        /* DESKTOP */
+        #desktop { flex: 1; padding: 30px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); grid-auto-rows: 110px; gap: 15px; }
+        .app-icon { display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: 0.2s; padding: 10px; border-radius: 8px; }
+        .app-icon:hover { background: rgba(255,255,255,0.08); }
+        .app-icon:active { transform: scale(0.95); }
+        
+        .icon-gfx { width: 54px; height: 54px; border-radius: 14px; background: linear-gradient(145deg, #222, #0a0a0a); display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.6); border: 1px solid #333; position: relative; }
+        .app-label { margin-top: 8px; font-size: 0.75rem; color: #aaa; text-align: center; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 2px #000; }
+        
+        /* ICONS COLORS */
+        .icon-gfx[data-ext="js"] { border-bottom: 2px solid #f7df1e; color: #f7df1e; }
+        .icon-gfx[data-ext="html"] { border-bottom: 2px solid #e34f26; color: #e34f26; }
+        .rom-tag { position: absolute; top: -4px; right: -4px; background: var(--accent); color: #000; font-size: 7px; font-weight: bold; padding: 1px 3px; border-radius: 2px; }
+
+        /* ADMIN PANEL */
+        #admin-tools { position: absolute; bottom: 20px; right: 20px; width: 280px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 15px; z-index: 500; box-shadow: 0 20px 50px rgba(0,0,0,0.8); }
+        .tool-header { font-size: 0.8rem; text-transform: uppercase; color: #666; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        button { border: none; padding: 10px; border-radius: 4px; font-weight: 600; cursor: pointer; color: #fff; width: 100%; margin-bottom: 8px; font-size: 0.8rem; transition: 0.2s; }
+        .btn-add { background: #333; } .btn-add:hover { background: #444; }
+        .btn-exp { background: var(--accent); color: #000; } .btn-exp:hover { background: #00d685; }
+        .btn-wipe { background: var(--danger); } .btn-wipe:hover { background: #d40032; }
+
+        /* WINDOWS / SANDBOX */
+        #app-window { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: none; flex-direction: column; }
+        .win-bar { height: 40px; background: #111; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; border-bottom: 1px solid #333; }
+        .win-title { font-weight: bold; font-size: 0.9rem; color: #fff; }
+        iframe { flex: 1; border: none; background: #fff; }
+
+        /* FILE PICKER IMPROVED */
+        #picker-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 3000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .picker-win { background: #1a1a1a; width: 90%; max-width: 450px; border: 1px solid #444; border-radius: 8px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.9); display: flex; flex-direction: column; max-height: 70vh; }
+        .picker-head { background: #222; padding: 12px; font-weight: bold; border-bottom: 1px solid #333; color: var(--accent); display: flex; justify-content: space-between; align-items: center; }
+        .picker-info { font-size: 0.75rem; color: #666; font-weight: normal; }
+        .picker-body { overflow-y: auto; padding: 10px; flex: 1; }
+        .file-row { padding: 10px; border-bottom: 1px solid #2a2a2a; display: flex; align-items: center; cursor: pointer; transition: 0.2s; border-radius: 4px; margin-bottom: 2px; }
+        .file-row:hover { background: #2a2a2a; }
+        .file-row.selected { background: var(--select); border: 1px solid var(--accent); }
+        .file-ico { margin-right: 12px; font-size: 1.2rem; }
+        .picker-foot { padding: 10px; background: #111; border-top: 1px solid #333; display: flex; gap: 10px; }
+        
+        /* Checkbox visuel pour mode multiple */
+        .check-indicator { width: 16px; height: 16px; border: 2px solid #444; border-radius: 3px; margin-right: 10px; display: none; align-items: center; justify-content: center; }
+        .selected .check-indicator { background: var(--accent); border-color: var(--accent); }
+        .selected .check-indicator::after { content: '✓'; color: #000; font-size: 12px; font-weight: bold; }
+        .mode-multi .check-indicator { display: flex; }
+
+    </style>
+</head>
+<body oncontextmenu="return false;"> 
+
+
+
+<header>
+    <div class="sys-name"><span class="sys-ind"></span> UNI-OS V7.2</div>
+    <div id="ram-usage" style="font-size: 0.7rem; color: #555;">RAM: 0%</div>
+</header>
+
+<div id="desktop"><div class="app-icon">
+                    <div class="icon-gfx" data-ext="html">
+                        🌐
+                        <span class="rom-tag">ROM</span>
+                    </div>
+                    <div class="app-label">voi...revenu..3 -®.html</div>
+                </div></div>
+
+
+
+<div id="app-window" style="display: none;">
+    <div class="win-bar">
+        <span class="win-title" id="win-title">voi...revenu..3 -®.html</span>
+        <button onclick="sandbox.close()" style="width:auto; background:#333; padding:4px 12px; font-size:0.75rem; margin:0;">Fermer</button>
+    </div>
+    <iframe id="win-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock" src="about:blank"></iframe>
+</div>
+
+<div id="picker-overlay">
+    <div class="picker-win">
+        <div class="picker-head">
+            <span>Sélectionner fichier(s)</span>
+            <span id="picker-mode-txt" class="picker-info">Simple</span>
+        </div>
+        <div class="picker-body" id="picker-list"></div>
+        <div class="picker-foot">
+            <button onclick="picker.close()" style="background:#333; margin:0;">Annuler</button>
+            <button id="picker-confirm" onclick="picker.confirm()" style="background:var(--accent); color:#000; margin:0; display:none;">Valider (0)</button>
+        </div>
+    </div>
+</div>
+
+
+
+<script id="core-script">
+/**
+ * 🛡️ SECURITE & UTILITAIRES (DOIT RESTER)
+ */
+const security = {
+    encode: function(str) {
+        return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
+            (match, p1) => String.fromCharCode('0x' + p1)));
+    },
+    decode: function(str) {
+        return decodeURIComponent(atob(str).split('').map(c => 
+            '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    }
+};
+
+// Blocage touches dev (DOIT RESTER)
+document.onkeydown = function(e) {
+    if(e.keyCode == 123) return false;
+    if(e.ctrlKey && e.shiftKey && (e.keyCode == 73 || e.keyCode == 74)) return false;
+    if(e.ctrlKey && e.keyCode == 85) return false;
+}
+
+/**
+ * ⚡ KERNEL - Fonctions essentielles (VFS et Render) (DOIT RESTER)
+ */
+const kernel = {
+    vfs: {},
+    // Fonction minimale pour afficher le bureau (utilisée par le script de boot minimaliste)
+    renderDesktop: function() {
+        const grid = document.getElementById('desktop');
+        grid.innerHTML = '';
+        
+        Object.keys(this.vfs).sort().forEach(key => {
+            const f = this.vfs[key];
+            // On inclut aussi les fichiers de données JSON pour le Copilote/les applications
+            if(['html', 'js', 'json'].includes(f.type) && f.name !== 'boot_sequence.json') {
+                const el = document.createElement('div');
+                el.className = 'app-icon';
+                // N'ouvrir que si c'est exécutable (html ou js)
+                if (['html', 'js'].includes(f.type)) {
+                    el.onclick = () => sandbox.launch(key);
+                } else {
+                    // Fichier de données, non exécutable
+                    el.style.opacity = 0.5; 
+                    el.onclick = () => alert(`Fichier de données : ${f.name}. Non-exécutable.`);
+                }
+                
+                let icon = '📄';
+                if(f.type === 'html') icon = '🌐';
+                if(f.type === 'js') icon = '⚡';
+                if(f.type === 'json') icon = '💾';
+                if(key.toLowerCase().includes('voiture')) icon = '🏎️';
+
+                el.innerHTML = `
+                    <div class="icon-gfx" data-ext="${f.type}">
+                        ${icon}
+                        ${f.isRom ? '<span class="rom-tag">ROM</span>' : ''}
+                    </div>
+                    <div class="app-label">${f.name}</div>
+                `;
+                grid.appendChild(el);
+            }
+        });
+    }
+    // Les autres fonctions de kernel (boot, ingest, exportSystem) sont dans le script admin
+};
+
+
+/**
+ * 🎮 SANDBOX (Driver & VM) (DOIT RESTER)
+ */
+const sandbox = {
+    launch: function(name) {
+        // HOOK LAUNCH: Enregistrement de l'action LAUNCH
+        if(typeof copilot !== 'undefined' && copilot.isRecording) copilot.log('LAUNCH', name); 
+        
+        const f = kernel.vfs[name];
+        if(!f) return;
+
+        const win = document.getElementById('app-window');
+        const frame = document.getElementById('win-frame');
+        document.getElementById('win-title').innerText = f.name;
+        
+        let code = f.content;
+        if(f.type === 'js') {
+            code = `<!DOCTYPE html><html><body style="background:#111;color:#fff;display:flex;justify-content:center;align-items:center;height:100vh;">Running Module...<script>${f.content}<\/script></body></html>`;
+        }
+
+        // --- DRIVER SYSTÈME AMÉLIORÉ (Multi-Select et SAVE) ---
+        const driver = `
+        <script>
+            (function(){
+                const _uid = () => 'sys_' + Math.random().toString(36).substr(2);
+                
+                // NOUVEAU: Fonction de Sauvegarde pour les Apps (Pont d'Écriture)
+                window.sys_save = function(name, content, mime) {
+                    window.parent.postMessage({
+                        act: 'SAVE',
+                        n: name,
+                        c: content,
+                        m: mime || 'application/octet-stream'
+                    }, '*');
+                };
+                
+                function trap(e) {
+                    let t = e.target;
+                    while(t && t !== document) {
+                        if((t.tagName==='INPUT' && t.type==='file') || (t.tagName==='LABEL' && t.htmlFor)) {
+                           if(t.tagName==='LABEL') {
+                               const rel = document.getElementById(t.htmlFor);
+                               if(rel && rel.type==='file') t = rel;
+                           }
+                           if(t.type === 'file') {
+                               e.preventDefault(); e.stopImmediatePropagation();
+                               // Détection Multi
+                               const isMulti = t.hasAttribute('multiple');
+                               window.parent.postMessage({
+                                   act:'REQ', 
+                                   id: t.id || (t.id=_uid()),
+                                   multi: isMulti
+                               }, '*');
+                               return false;
+                           }
+                        }
+                        t = t.parentNode;
+                    }
+                }
+                document.addEventListener('click', trap, true);
+                
+                const _clk = HTMLInputElement.prototype.click;
+                HTMLInputElement.prototype.click = function() {
+                    if(this.type === 'file') {
+                        window.parent.postMessage({
+                            act:'REQ', 
+                            id: this.id || (this.id=_uid()), 
+                            multi: this.hasAttribute('multiple')
+                        }, '*');
+                        return false;
+                    }
+                    return _clk.apply(this, arguments);
+                };
+
+                // Réception Fichiers (Supporte Array ou Single)
+                window.addEventListener('message', e => {
+                    if(e.data.act === 'DLV') {
+                        const {files, id} = e.data;
+                        const el = document.getElementById(id);
+                        if(el) {
+                            const dt = new DataTransfer();
+                            
+                            files.forEach(f => {
+                                let b;
+                                if(f.c.startsWith('data:')) {
+                                    // Conversion DataURL -> Blob
+                                    const arr = f.c.split(',');
+                                    const mime = arr[0].match(/:(.*?);/)[1];
+                                    const bstr = atob(arr[1]);
+                                    let n = bstr.length, u8arr = new Uint8Array(n);
+                                    while(n--) u8arr[n] = bstr.charCodeAt(n);
+                                    b = new Blob([u8arr], {type:mime});
+                                } else {
+                                    b = new Blob([f.c], {type: f.m});
+                                }
+                                dt.items.add(new File([b], f.n, {type: f.m}));
+                            });
+
+                            el.files = dt.files;
+                            el.dispatchEvent(new Event('input', {bubbles:true}));
+                            el.dispatchEvent(new Event('change', {bubbles:true}));
+                        }
+                    }
+                });
+            })();
+        <\/script>`;
+
+        if(code.includes('<head>')) code = code.replace('<head>', '<head>'+driver);
+        else code = driver + code;
+
+        win.style.display = 'flex';
+        frame.src = URL.createObjectURL(new Blob([code], {type:'text/html'}));
+    },
+
+    close: function() {
+        document.getElementById('app-window').style.display = 'none';
+        document.getElementById('win-frame').src = 'about:blank';
+    }
+};
+
+/**
+ * 📂 SELECTEUR DE FICHIER INTERNE (Multi-Support) (DOIT RESTER)
+ */
+const picker = {
+    tgt: null,
+    isMulti: false,
+    selection: new Set(),
+
+    open: function(req) {
+        this.tgt = req.id;
+        this.isMulti = req.multi || false;
+        this.selection.clear();
+
+        const list = document.getElementById('picker-list');
+        const btn = document.getElementById('picker-confirm');
+        const info = document.getElementById('picker-mode-txt');
+
+        list.innerHTML = '';
+        info.innerText = this.isMulti ? "Sélection Multiple" : "Sélection Unique";
+        btn.style.display = this.isMulti ? 'block' : 'none';
+        list.className = 'picker-body ' + (this.isMulti ? 'mode-multi' : '');
+
+        this.updateBtn();
+
+        Object.values(kernel.vfs).forEach(f => {
+            const row = document.createElement('div');
+            row.className = 'file-row';
+            row.innerHTML = `
+                <div class="check-indicator"></div>
+                <div class="file-ico">${f.type==='html'?'🌐':'📄'}</div>
+                <div>${f.name}</div>
+            `;
+            
+            row.onclick = () => {
+                if(this.isMulti) {
+                    if(this.selection.has(f.name)) {
+                        this.selection.delete(f.name);
+                        row.classList.remove('selected');
+                    } else {
+                        this.selection.add(f.name);
+                        row.classList.add('selected');
+                    }
+                    this.updateBtn();
+                } else {
+                    // Mode unique : envoi direct
+                    this.send([f]);
+                }
+            };
+            list.appendChild(row);
+        });
+        document.getElementById('picker-overlay').style.display = 'flex';
+    },
+
+    updateBtn: function() {
+        const btn = document.getElementById('picker-confirm');
+        btn.innerText = `Valider (${this.selection.size})`;
+        btn.style.opacity = this.selection.size > 0 ? 1 : 0.5;
+    },
+
+    confirm: function() {
+        if(this.selection.size === 0) return;
+        const files = [];
+        this.selection.forEach(name => {
+            files.push(kernel.vfs[name]);
+        });
+        
+        // HOOK PICK: Enregistrement des fichiers choisis
+        const fileNames = []; 
+        this.selection.forEach( name => fileNames.push(name));
+        if(typeof copilot !== 'undefined' && copilot.isRecording) copilot.log('PICK', fileNames); 
+
+        this.send(files);
+    },
+
+    send: function(filesArray) {
+        const fr = document.getElementById('win-frame');
+        // Préparation des données légères pour transfert iframe
+        const payload = filesArray.map(f => ({
+            n: f.name, 
+            c: f.content, 
+            m: f.mime
+        }));
+        
+        fr.contentWindow.postMessage({
+            act: 'DLV', 
+            id: this.tgt, 
+            files: payload
+        }, '*');
+        
+        this.close();
+    },
+
+    close: () => document.getElementById('picker-overlay').style.display = 'none'
+};
+
+/**
+ * 🤖 COPILOTE - Turbo Autopilot pour l'exécution zéro-délai
+ */
+const copilot = {
+    tape : [],
+    isRecording : false,
+    isReplaying : false,
+    replayIndex : 0,
+
+    // --- ENREGISTREMENT ---
+    start : function() {
+        this.tape = [];
+        this.isRecording = true;
+        document.getElementById('copilot-ui').style.display = 'flex';
+        alert("🔴 Copilote: Lancez votre App et faites vos actions. Cliquez sur 'Confirmer' quand l'app est prête.");
+    },
+    markValidate : function() {
+        if (!this.isRecording) return;
+        this.log('VALIDATE', { t : Date.now() });
+        // Sauvegarde immédiate et arrêt
+        this.stop();
+    },
+    stop : function() {
+        this.isRecording = false;
+        document.getElementById('copilot-ui').style.display = 'none';
+        
+        // Création du fichier de séquence (Protégé)
+        const seqContent = JSON.stringify(this.tape);
+        
+        // On écrit directement dans le VFS pour éviter les délais d'interface
+        const f = {
+            name : 'boot_sequence.json',
+            content : seqContent,
+            type : 'json',
+            mime: 'application/json',
+            date: Date.now(),
+            isRom : true   // Marqué comme système pour être inclus et protégé à l'export
+        };
+        kernel.vfs[f.name] = f;
+        
+        // Sauvegarde si nous sommes en mode SRC (avec base de données)
+        if (typeof db !== 'undefined' && db.conn) db.write(f);
+        
+        alert("⚡ Séquence Turbo enregistrée !");
+    },
+    log : function(act, data) {
+        if (this.isRecording) this.tape.push({ a : act, d : data });
+    },
+
+    // --- LECTURE (AUTOBOOT) ---
+    autoRun : function() {
+        if (!kernel.vfs['boot_sequence.json']) return;
+        try {
+            const content = kernel.vfs['boot_sequence.json'].content;
+            this.tape = JSON.parse(content);
+            this.isReplaying = true;
+            this.replayIndex = 0;
+            
+            console.log("🤖 Copilote: Démarrage de la séquence Turbo...");
+            
+            // 1. Lancement immédiat de l'application
+            const launchStep = this.tape.find( s => s.a === 'LAUNCH' );
+            if (launchStep) {
+                console.log("🚀 Turbo Boot Launch:", launchStep.d);
+                sandbox.launch(launchStep.d);
+            }
+        } catch (e) { 
+            console.error("Boot Error", e);
+        }
+    },
+
+    // --- INTERCEPTEUR HAUTE VITESSE ---
+    handleRequest : function(reqId) {
+        if (!this.isReplaying) return false;
+
+        // Recherche de la prochaine action PICK
+        const steps = this.tape.filter( s => s.a === 'PICK' );
+        
+        if (this.replayIndex < steps.length) {
+            const step = steps[this.replayIndex];
+            this.replayIndex++;
+                        
+            // Récupération instantanée des objets fichiers
+            const files = step.d.map( n => kernel.vfs[n]).filter( f => f);
+            
+            if (files.length > 0) {
+                // Réponse synchrone immédiate (zéro délai)
+                picker.tgt = reqId;
+                picker.send(files);
+                console.log("🤖 Copilote: Fichiers injectés en Turbo-mode:", step.d);
+                return true;  // Bloque l'ouverture de l'interface graphique
+            }
+        }
+        return false;
+    }
+};
+
+
+window.addEventListener('message', e => {
+    // 1. PONT D'ÉCRITURE (SAVE Hook)
+    if (e.data.act === 'SAVE') {
+        const { n, c, m } = e.data;
+        // Protection : On interdit d'écraser une ROM existante
+        if (kernel.vfs[n] && kernel.vfs[n].isRom) {
+            alert(`Erreur: Le fichier système "${n}" est protégé en écriture.`);
+            return;
+        }
+        const newFile = {
+            name: n,
+            content: c,
+            type: n.split('.').pop().toLowerCase(),
+            mime: m,
+            date: Date.now(),
+            isRom: false // C'est la clé : ce fichier est "Utilisateur"
+        };
+        // Mise à jour VFS (RAM)
+        kernel.vfs[n] = newFile;
+        // Persistance (Seulement pour SRC, ignoré par EXP)
+        if (typeof db !== 'undefined' && db.conn) db.write(newFile);
+        kernel.renderDesktop();
+        // Notification discrète pour ne pas bloquer le Copilote
+        console.log(`Fichier sauvegardé : ${n}`);
+        return;
+    }
+
+    // 2. INTERCEPTEUR FICHIER (REQ Hook - TURBO)
+    if (e.data.act === 'REQ') {
+        // Si le copilote intercepte, on ne fait RIEN d'autre (pas d'UI)
+        if (typeof copilot !== 'undefined' && copilot.handleRequest(e.data.id)) {
+            return;
+        }
+        picker.open(e.data); // Sinon, on ouvre le menu humain
+    }
+});
+</script>
+
+
+
+
+<script>
+            window.SECURE_BOOT_DATA = "eyJ2b2kuLi5yZXZlbnUuLjMgLcKuLmh0bWwiOnsibmFtZSI6InZvaS4uLnJldmVudS4uMyAtwq4uaHRtbCIsImNvbnRlbnQiOiI8IURPQ1RZUEUgaHRtbD5cbjxodG1sIGxhbmc9XCJmclwiPlxuPGhlYWQ+XG4gICAgPG1ldGEgY2hhcnNldD1cIlVURi04XCI+XG4gICAgPG1ldGEgbmFtZT1cInZpZXdwb3J0XCIgY29udGVudD1cIndpZHRoPWRldmljZS13aWR0aCwgaW5pdGlhbC1zY2FsZT0xLjAsIG1heGltdW0tc2NhbGU9MS4wLCB1c2VyLXNjYWxhYmxlPW5vXCI+XG4gICAgPHRpdGxlPldlYiBBcHBzICYgU2VydmljZXM8L3RpdGxlPlxuICAgIDxzdHlsZT5cbiAgICAgICAgOnJvb3Qge1xuICAgICAgICAgICAgLS1wcmltYXJ5OiAjMDA3YmZmO1xuICAgICAgICAgICAgLS13aGF0c2FwcDogIzI1RDM2NjtcbiAgICAgICAgICAgIC0tYmc6ICNmNGY0Zjk7XG4gICAgICAgICAgICAtLXRleHQ6ICMzMzM7XG4gICAgICAgIH1cblxuICAgICAgICAvKiBTVVBQUkVTU0lPTiBEVSBEw4lGSUxFTUVOVCBERSBQQUdFIFBSSU5DSVBBTEUgKi9cbiAgICAgICAgYm9keSwgaHRtbCB7XG4gICAgICAgICAgICBtYXJnaW46IDA7XG4gICAgICAgICAgICBwYWRkaW5nOiAwO1xuICAgICAgICAgICAgd2lkdGg6IDEwMCU7XG4gICAgICAgICAgICBoZWlnaHQ6IDEwMCU7XG4gICAgICAgICAgICBvdmVyZmxvdzogaGlkZGVuO1xuICAgICAgICAgICAgZm9udC1mYW1pbHk6ICdTZWdvZSBVSScsIHNhbnMtc2VyaWY7XG4gICAgICAgICAgICBiYWNrZ3JvdW5kLWNvbG9yOiB2YXIoLS1iZyk7XG4gICAgICAgICAgICBkaXNwbGF5OiBmbGV4O1xuICAgICAgICAgICAgZmxleC1kaXJlY3Rpb246IGNvbHVtbjtcbiAgICAgICAgfVxuXG4gICAgICAgIC8qIEhFQURFUiBDT05UQUNUICovXG4gICAgICAgIC5oZWFkZXItY29udGFjdCB7XG4gICAgICAgICAgICBwYWRkaW5nOiAxMHB4O1xuICAgICAgICAgICAgYmFja2dyb3VuZDogd2hpdGU7XG4gICAgICAgICAgICBib3gtc2hhZG93OiAwIDJweCAxMHB4IHJnYmEoMCwwLDAsMC4xKTtcbiAgICAgICAgICAgIHRleHQtYWxpZ246IGNlbnRlcjtcbiAgICAgICAgICAgIHotaW5kZXg6IDIwO1xuICAgICAgICAgICAgZmxleC1zaHJpbms6IDA7IC8qIE5lIHLDqXRyw6ljaXQgcGFzICovXG4gICAgICAgIH1cblxuICAgICAgICAuaGVhZGVyLWNvbnRhY3QgaDIge1xuICAgICAgICAgICAgbWFyZ2luOiAwIDAgNXB4IDA7XG4gICAgICAgICAgICBjb2xvcjogdmFyKC0tcHJpbWFyeSk7XG4gICAgICAgICAgICBmb250LXNpemU6IDEuMWVtO1xuICAgICAgICB9XG5cbiAgICAgICAgLmJ0bi1yb3cge1xuICAgICAgICAgICAgZGlzcGxheTogZmxleDtcbiAgICAgICAgICAgIGdhcDogMTBweDtcbiAgICAgICAgICAgIGp1c3RpZnktY29udGVudDogY2VudGVyO1xuICAgICAgICB9XG5cbiAgICAgICAgLmJ0biB7XG4gICAgICAgICAgICBwYWRkaW5nOiA4cHggMTJweDtcbiAgICAgICAgICAgIGJvcmRlci1yYWRpdXM6IDVweDtcbiAgICAgICAgICAgIHRleHQtZGVjb3JhdGlvbjogbm9uZTtcbiAgICAgICAgICAgIGZvbnQtd2VpZ2h0OiBib2xkO1xuICAgICAgICAgICAgZm9udC1zaXplOiAwLjg1ZW07XG4gICAgICAgICAgICBjb2xvcjogd2hpdGU7XG4gICAgICAgICAgICBkaXNwbGF5OiBpbmxpbmUtYmxvY2s7XG4gICAgICAgIH1cblxuICAgICAgICAuYnRuLXdhIHsgYmFja2dyb3VuZC1jb2xvcjogdmFyKC0td2hhdHNhcHApOyB9XG4gICAgICAgIC5idG4tbWFpbCB7IGJhY2tncm91bmQtY29sb3I6ICMzMzM7IH1cblxuICAgICAgICAvKiBaT05FIEQnQUZGSUNIQUdFIChMZSBjb250ZW5ldXIgZGVzIGFwcHMpICovXG4gICAgICAgICNhZC1kaXNwbGF5LWNvbnRhaW5lciB7XG4gICAgICAgICAgICBmbGV4OiAxOyBcbiAgICAgICAgICAgIHBvc2l0aW9uOiByZWxhdGl2ZTtcbiAgICAgICAgICAgIG1hcmdpbjogMTVweDtcbiAgICAgICAgICAgIGJvcmRlcjogNHB4IHNvbGlkICMzMzM7XG4gICAgICAgICAgICBib3JkZXItcmFkaXVzOiAxNXB4O1xuICAgICAgICAgICAgYmFja2dyb3VuZDogIzAwMDtcbiAgICAgICAgICAgIG92ZXJmbG93OiBoaWRkZW47XG4gICAgICAgICAgICBib3gtc2hhZG93OiAwIDVweCAxNXB4IHJnYmEoMCwwLDAsMC4yKTtcbiAgICAgICAgICAgIHRyYW5zaXRpb246IGFsbCAwLjNzIGVhc2U7XG4gICAgICAgIH1cblxuICAgICAgICAvKiBMRVMgRkVOw4pUUkVTIEQnQVBQTElDQVRJT04gKElGUkFNRVMpICovXG4gICAgICAgIGlmcmFtZS5hcHAtZnJhbWUge1xuICAgICAgICAgICAgd2lkdGg6IDEwMCU7XG4gICAgICAgICAgICBoZWlnaHQ6IDEwMCU7XG4gICAgICAgICAgICBib3JkZXI6IG5vbmU7XG4gICAgICAgICAgICBkaXNwbGF5OiBub25lOyAvKiBDYWNow6kgcGFyIGTDqWZhdXQgKi9cbiAgICAgICAgICAgIGJhY2tncm91bmQ6IHdoaXRlO1xuICAgICAgICAgICAgcG9pbnRlci1ldmVudHM6IG5vbmU7IC8qIETDqXNhY3RpdsOpIHRhbnQgcXVlIGMnZXN0IHVuZSBwdWIgKi9cbiAgICAgICAgfVxuXG4gICAgICAgIGlmcmFtZS5hcHAtZnJhbWUuYWN0aXZlIHtcbiAgICAgICAgICAgIGRpc3BsYXk6IGJsb2NrO1xuICAgICAgICB9XG5cbiAgICAgICAgLyogw4lUQVQgQUdSQU5ESSAoTW9kZSBVdGlsaXNhdGlvbikgKi9cbiAgICAgICAgI2FkLWRpc3BsYXktY29udGFpbmVyLmV4cGFuZGVkIHtcbiAgICAgICAgICAgIHBvc2l0aW9uOiBmaXhlZDtcbiAgICAgICAgICAgIHRvcDogMDtcbiAgICAgICAgICAgIGxlZnQ6IDA7XG4gICAgICAgICAgICB3aWR0aDogMTAwJTtcbiAgICAgICAgICAgIGhlaWdodDogMTAwJTtcbiAgICAgICAgICAgIG1hcmdpbjogMDtcbiAgICAgICAgICAgIHotaW5kZXg6IDEwMDA7XG4gICAgICAgICAgICBib3JkZXI6IG5vbmU7XG4gICAgICAgICAgICBib3JkZXItcmFkaXVzOiAwO1xuICAgICAgICB9XG5cbiAgICAgICAgLyogUsOpYWN0aXZlciBsZXMgY2xpY3MgcXVhbmQgYydlc3QgYWdyYW5kaSAqL1xuICAgICAgICAjYWQtZGlzcGxheS1jb250YWluZXIuZXhwYW5kZWQgaWZyYW1lLmFwcC1mcmFtZSB7XG4gICAgICAgICAgICBwb2ludGVyLWV2ZW50czogYXV0bztcbiAgICAgICAgfVxuXG4gICAgICAgIC8qIE1hc3F1ZSB0cmFuc3BhcmVudCBwb3VyIGNhcHRlciBsZSBjbGljIGVuIG1vZGUgUHViICovXG4gICAgICAgICNjbGljay1vdmVybGF5IHtcbiAgICAgICAgICAgIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgICAgICAgICAgIHRvcDogMDtcbiAgICAgICAgICAgIGxlZnQ6IDA7XG4gICAgICAgICAgICB3aWR0aDogMTAwJTtcbiAgICAgICAgICAgIGhlaWdodDogMTAwJTtcbiAgICAgICAgICAgIHotaW5kZXg6IDEwOyAvKiBBdSBkZXNzdXMgZGUgbCdpZnJhbWUgKi9cbiAgICAgICAgICAgIGN1cnNvcjogcG9pbnRlcjtcbiAgICAgICAgICAgIGJhY2tncm91bmQ6IHRyYW5zcGFyZW50O1xuICAgICAgICB9XG5cbiAgICAgICAgI2FkLWRpc3BsYXktY29udGFpbmVyLmV4cGFuZGVkICNjbGljay1vdmVybGF5IHtcbiAgICAgICAgICAgIGRpc3BsYXk6IG5vbmU7IC8qIERpc3BhcmFpdCBlbiBtb2RlIHV0aWxpc2F0aW9uICovXG4gICAgICAgIH1cblxuICAgICAgICAvKiBCT1VUT04gUkVUT1VSICovXG4gICAgICAgICNiYWNrLWJ0biB7XG4gICAgICAgICAgICBkaXNwbGF5OiBub25lO1xuICAgICAgICAgICAgcG9zaXRpb246IGZpeGVkO1xuICAgICAgICAgICAgYm90dG9tOiAyMHB4O1xuICAgICAgICAgICAgbGVmdDogNTAlO1xuICAgICAgICAgICAgdHJhbnNmb3JtOiB0cmFuc2xhdGVYKC01MCUpO1xuICAgICAgICAgICAgYmFja2dyb3VuZC1jb2xvcjogI2ZmNDQ0NDtcbiAgICAgICAgICAgIGNvbG9yOiB3aGl0ZTtcbiAgICAgICAgICAgIHBhZGRpbmc6IDEycHggMzBweDtcbiAgICAgICAgICAgIGJvcmRlcjogbm9uZTtcbiAgICAgICAgICAgIGJvcmRlci1yYWRpdXM6IDI1cHg7XG4gICAgICAgICAgICBmb250LXdlaWdodDogYm9sZDtcbiAgICAgICAgICAgIGJveC1zaGFkb3c6IDAgNHB4IDE1cHggcmdiYSgwLDAsMCwwLjMpO1xuICAgICAgICAgICAgei1pbmRleDogMjAwMDsgLyogVHLDqHMgaGF1dCAqL1xuICAgICAgICAgICAgY3Vyc29yOiBwb2ludGVyO1xuICAgICAgICB9XG5cbiAgICAgICAgLmNsaWNrLWhpbnQge1xuICAgICAgICAgICAgcG9zaXRpb246IGFic29sdXRlO1xuICAgICAgICAgICAgYm90dG9tOiAxMHB4O1xuICAgICAgICAgICAgcmlnaHQ6IDEwcHg7XG4gICAgICAgICAgICBiYWNrZ3JvdW5kOiByZ2JhKDAsMCwwLDAuNyk7XG4gICAgICAgICAgICBjb2xvcjogd2hpdGU7XG4gICAgICAgICAgICBwYWRkaW5nOiA1cHggMTBweDtcbiAgICAgICAgICAgIGZvbnQtc2l6ZTogMC43ZW07XG4gICAgICAgICAgICBib3JkZXItcmFkaXVzOiAxMHB4O1xuICAgICAgICAgICAgcG9pbnRlci1ldmVudHM6IG5vbmU7XG4gICAgICAgICAgICB6LWluZGV4OiAxNTtcbiAgICAgICAgfVxuICAgIDwvc3R5bGU+XG48L2hlYWQ+XG48Ym9keT5cblxuICAgIDxkaXYgY2xhc3M9XCJoZWFkZXItY29udGFjdFwiPlxuICAgICAgICA8aDI+RMOpdmVsb3BwZXVyIE1vYmlsZSAmIFByb21wdFxuXG5MJ09mZnJlIDogV2ViIEFwcCBBdXRvbm9tZVxuXG5KZSBjcsOpZSBwb3VyIHZvdXMgdW5lIGFwcGxpY2F0aW9uIHdlYiAoSFRNTCBwdXIpIGNvbsOndWUgcG91ciA6XG5cbk9wdGltaXNlciB2b3MgZWZmb3J0c8KgKG91dGlscyBkJ29yZ2FuaXNhdGlvbikuXG5cbkNyw6llciBkdSBjb250ZW51wqAoZ8OpbsOpcmF0ZXVycyBkZSBwcm9tcHRzKS5cblxuw4lkdWNhdGlvbsKgKG1vZHVsZXMgaW50ZXJhY3RpZnMpLlxuXG5TdXIgRGV2aXNcblxuPC9oMj5cbiAgICAgICAgPGRpdiBjbGFzcz1cImJ0bi1yb3dcIj5cbiAgICAgICAgICAgIDxhIGhyZWY9XCJodHRwczovL3dhLm1lLzIxMzc3OTg5NDc3NFwiIGNsYXNzPVwiYnRuIGJ0bi13YVwiPldoYXRzQXBwPC9hPlxuICAgICAgICAgICAgPGEgaHJlZj1cIm1haWx0bzpyZXZpdnJlYmluYXJ5QGdtYWlsLmNvbVwiIGNsYXNzPVwiYnRuIGJ0bi1tYWlsXCI+RW1haWw8L2E+XG4gICAgICAgIDwvZGl2PlxuICAgIDwvZGl2PlxuXG4gICAgPGRpdiBpZD1cImFkLWRpc3BsYXktY29udGFpbmVyXCI+XG4gICAgICAgIDxkaXYgaWQ9XCJjbGljay1vdmVybGF5XCIgb25jbGljaz1cIm9wZW5BcHAoKVwiPjwvZGl2PlxuICAgICAgICBcbiAgICAgICAgPGlmcmFtZSBpZD1cImZyYW1lMVwiIGNsYXNzPVwiYXBwLWZyYW1lIGFjdGl2ZVwiPjwvaWZyYW1lPlxuICAgICAgICA8aWZyYW1lIGlkPVwiZnJhbWUyXCIgY2xhc3M9XCJhcHAtZnJhbWVcIj48L2lmcmFtZT5cbiAgICAgICAgPGlmcmFtZSBpZD1cImZyYW1lM1wiIGNsYXNzPVwiYXBwLWZyYW1lXCI+PC9pZnJhbWU+XG5cbiAgICAgICAgPGRpdiBjbGFzcz1cImNsaWNrLWhpbnRcIiBpZD1cImhpbnQtdGV4dFwiPkNsaXF1ZXIgcG91ciB0ZXN0ZXIgbCdhcHA8L2Rpdj5cbiAgICA8L2Rpdj5cblxuICAgIDxidXR0b24gaWQ9XCJiYWNrLWJ0blwiIG9uY2xpY2s9XCJjbG9zZUFwcCgpXCI+UkVUT1VSIChGZXJtZXIgbCdhcHApPC9idXR0b24+XG5cbiAgICA8c2NyaXB0PlxuICAgICAgICAvLyAtLS0gMS4gU1RPQ0tBR0UgREVTIENPREVTIEhUTUwgREVTIEFQUFMgLS0tXG4gICAgICAgIFxuICAgICAgICAvLyBBUFAgMSA6IFByb2ZpbCBXZWJcbiAgICAgICAgY29uc3QgY29kZUFwcDEgPSBgXG48IURPQ1RZUEUgaHRtbD5cbjxodG1sIGxhbmc9XCJmclwiPlxuPGhlYWQ+XG48bWV0YSBjaGFyc2V0PVwiVVRGLThcIj48bWV0YSBuYW1lPVwidmlld3BvcnRcIiBjb250ZW50PVwid2lkdGg9ZGV2aWNlLXdpZHRoLCBpbml0aWFsLXNjYWxlPTEuMFwiPlxuPHN0eWxlPlxuYm9keXtmb250LWZhbWlseTonU2Vnb2UgVUknLHNhbnMtc2VyaWY7YmFja2dyb3VuZDojZjBmMmY1O2NvbG9yOiMzMzM7dGV4dC1hbGlnbjpjZW50ZXI7cGFkZGluZzoyMHB4O21hcmdpbjowfVxuLmNvbnRhaW5lcntiYWNrZ3JvdW5kOiNmZmY7cGFkZGluZzozMHB4O2JvcmRlci1yYWRpdXM6MTJweDtib3gtc2hhZG93OjAgNnB4IDE1cHggcmdiYSgwLDAsMCwwLjEpO21hcmdpbjoyMHB4IGF1dG87bWF4LXdpZHRoOjkwJX1cbmgxe2NvbG9yOiMwMDU2YjM7Ym9yZGVyLWJvdHRvbTozcHggc29saWQgIzAwNTZiMztwYWRkaW5nLWJvdHRvbToxMHB4fVxuLmJhZGdle2JhY2tncm91bmQ6IzI4YTc0NTtjb2xvcjojZmZmO3BhZGRpbmc6OHB4IDE1cHg7Ym9yZGVyLXJhZGl1czo1cHg7Zm9udC13ZWlnaHQ6Ym9sZH1cbmF7Y29sb3I6I2ZmMDAwMDt0ZXh0LWRlY29yYXRpb246bm9uZTtmb250LXdlaWdodDpib2xkO2ZvbnQtc2l6ZToxLjFlbX1cbjwvc3R5bGU+XG48L2hlYWQ+XG48Ym9keT5cbjxkaXYgY2xhc3M9XCJjb250YWluZXJcIj5cbjxoMT7wn5GLIE1vbiBFc3BhY2UgUGVyc29ubmVsPC9oMT5cbjxoMj7wn5K7IFLDtGxlIFByb2Zlc3Npb25uZWw8L2gyPlxuPHNwYW4gY2xhc3M9XCJiYWRnZVwiPkTDqXZlbG9wcGV1cjwvc3Bhbj5cbjxwPkV4cGVydCBlbiBjcsOpYXRpb24gZCdvdXRpbHMgbnVtw6lyaXF1ZXMgZXQgYXV0b21hdGlzYXRpb24uPC9wPlxuPGhyPlxuPGgyPvCfk7ogQ2hhw65uZSBZb3VUdWJlPC9oMj5cbjxwPjxhIGhyZWY9XCJodHRwczovL3lvdXR1YmUuY29tL0BhbWluZV93aHIzMT9zaT05Mnc4RkgzeFBkMDUta0w1XCIgdGFyZ2V0PVwiX2JsYW5rXCI+VmlzaXRlciBsYSBjaGHDrm5lIEBhbWluZV93aHIzMTwvYT48L3A+XG48L2Rpdj5cbjwvYm9keT48L2h0bWw+XG4gICAgICAgIGA7XG5cbiAgICAgICAgLy8gQVBQIDIgOiBUZXh0VmF1bHQgKFNhdXZlZ2FyZGUgVGV4dGUpXG4gICAgICAgIGNvbnN0IGNvZGVBcHAyID0gYFxuPCFET0NUWVBFIGh0bWw+XG48aHRtbCBsYW5nPVwiZnJcIj5cbjxoZWFkPlxuPG1ldGEgY2hhcnNldD1cIlVURi04XCI+PG1ldGEgbmFtZT1cInZpZXdwb3J0XCIgY29udGVudD1cIndpZHRoPWRldmljZS13aWR0aCwgaW5pdGlhbC1zY2FsZT0xLjBcIj5cbjxzdHlsZT5cbmJvZHl7ZGlzcGxheTpmbGV4O2ZsZXgtZGlyZWN0aW9uOmNvbHVtbjtoZWlnaHQ6MTAwdmg7bWFyZ2luOjA7YmFja2dyb3VuZDojZjBmMGYwO2ZvbnQtZmFtaWx5OkFyaWFsLHNhbnMtc2VyaWZ9XG5oZWFkZXJ7YmFja2dyb3VuZDojNENBRjUwO2NvbG9yOiNmZmY7cGFkZGluZzoxNXB4O3RleHQtYWxpZ246Y2VudGVyfVxubWFpbntwYWRkaW5nOjE1cHg7ZmxleDoxO292ZXJmbG93LXk6YXV0b31cbmlucHV0LHRleHRhcmVhe3dpZHRoOjEwMCU7cGFkZGluZzoxMHB4O21hcmdpbi1ib3R0b206MTBweDtib3JkZXI6MXB4IHNvbGlkICNjY2M7Ym9yZGVyLXJhZGl1czo1cHg7Ym94LXNpemluZzpib3JkZXItYm94fVxuYnV0dG9ue3dpZHRoOjEwMCU7cGFkZGluZzoxMHB4O2JhY2tncm91bmQ6IzIxOTZGMztjb2xvcjojZmZmO2JvcmRlcjpub25lO2JvcmRlci1yYWRpdXM6NXB4O2N1cnNvcjpwb2ludGVyO21hcmdpbi1ib3R0b206MTBweH1cbi5saXN0LWl0ZW17YmFja2dyb3VuZDojZmZmO3BhZGRpbmc6MTBweDttYXJnaW4tYm90dG9tOjVweDtib3JkZXI6MXB4IHNvbGlkICNkZGQ7ZGlzcGxheTpmbGV4O2p1c3RpZnktY29udGVudDpzcGFjZS1iZXR3ZWVuO2FsaWduLWl0ZW1zOmNlbnRlcn1cbi5kZWwtYnRue3dpZHRoOjMwcHg7YmFja2dyb3VuZDojZjQ0MzM2O2JvcmRlci1yYWRpdXM6NTAlO31cbjwvc3R5bGU+XG48L2hlYWQ+XG48Ym9keT5cbjxoZWFkZXI+PGgxPlRleHRWYXVsdCDwn5OdPC9oMT48L2hlYWRlcj5cbjxtYWluPlxuPGlucHV0IHR5cGU9XCJ0ZXh0XCIgaWQ9XCJ0XCIgcGxhY2Vob2xkZXI9XCJUaXRyZS4uLlwiPjx0ZXh0YXJlYSBpZD1cImNcIiBwbGFjZWhvbGRlcj1cIkNvbnRlbnUuLi5cIj48L3RleHRhcmVhPlxuPGJ1dHRvbiBvbmNsaWNrPVwic2F2ZSgpXCI+U2F1dmVnYXJkZXI8L2J1dHRvbj5cbjxkaXYgaWQ9XCJsaXN0XCI+PC9kaXY+XG48L21haW4+XG48c2NyaXB0PlxuZnVuY3Rpb24gc2F2ZSgpe1xuIHZhciB0PWRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCd0JykudmFsdWUsYz1kb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnYycpLnZhbHVlO1xuIGlmKHQmJmMpe1xuICAgdmFyIGxzPUpTT04ucGFyc2UobG9jYWxTdG9yYWdlLmdldEl0ZW0oJ3R2Jyl8fCdbXScpO1xuICAgbHMucHVzaCh7dDp0LGM6Y30pO1xuICAgbG9jYWxTdG9yYWdlLnNldEl0ZW0oJ3R2JyxKU09OLnN0cmluZ2lmeShscykpO1xuICAgc2hvdygpO1xuICAgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3QnKS52YWx1ZT0nJztkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnYycpLnZhbHVlPScnO1xuIH1cbn1cbmZ1bmN0aW9uIHNob3coKXtcbiB2YXIgbHM9SlNPTi5wYXJzZShsb2NhbFN0b3JhZ2UuZ2V0SXRlbSgndHYnKXx8J1tdJyk7XG4gdmFyIGg9Jyc7XG4gbHMuZm9yRWFjaCgoaSx4KT0+e1xuICAgaCs9JzxkaXYgY2xhc3M9XCJsaXN0LWl0ZW1cIj48ZGl2PjxiPicraS50Kyc8L2I+PGJyPicraS5jLnN1YnN0cmluZygwLDIwKSsnPC9kaXY+PGJ1dHRvbiBjbGFzcz1cImRlbC1idG5cIiBvbmNsaWNrPVwiZGVsKCcreCsnKVwiPlg8L2J1dHRvbj48L2Rpdj4nO1xuIH0pO1xuIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdsaXN0JykuaW5uZXJIVE1MPWg7XG59XG5mdW5jdGlvbiBkZWwoeCl7XG4gdmFyIGxzPUpTT04ucGFyc2UobG9jYWxTdG9yYWdlLmdldEl0ZW0oJ3R2Jyl8fCdbXScpO1xuIGxzLnNwbGljZSh4LDEpO1xuIGxvY2FsU3RvcmFnZS5zZXRJdGVtKCd0dicsSlNPTi5zdHJpbmdpZnkobHMpKTtcbiBzaG93KCk7XG59XG5zaG93KCk7XG48XFwvc2NyaXB0PjwvYm9keT48L2h0bWw+XG4gICAgICAgIGA7XG5cbiAgICAgICAgLy8gQVBQIDMgOiBWb2l0dXJlIEJpYiBTdHVkaW8gKEpldSlcbiAgICAgICAgLy8gTm90ZTogSidhaSBjb21wcmVzc8OpIGxlIENTUyBwb3VyIHF1ZSDDp2EgdGllbm5lIGJpZW4gZGFucyBsYSB2YXJpYWJsZVxuICAgICAgICBjb25zdCBjb2RlQXBwMyA9IGBcbjwhRE9DVFlQRSBodG1sPlxuPGh0bWwgbGFuZz1cImZyXCI+XG48aGVhZD5cbjxtZXRhIGNoYXJzZXQ9XCJVVEYtOFwiPjxtZXRhIG5hbWU9XCJ2aWV3cG9ydFwiIGNvbnRlbnQ9XCJ3aWR0aD1kZXZpY2Utd2lkdGgsIGluaXRpYWwtc2NhbGU9MS4wXCI+XG48dGl0bGU+R2xvYmFsIFRyYWRlcjwvdGl0bGU+XG48c3R5bGU+XG5ib2R5e21hcmdpbjowO292ZXJmbG93OmhpZGRlbjtiYWNrZ3JvdW5kOiMwMDA7dXNlci1zZWxlY3Q6bm9uZTtmb250LWZhbWlseTptb25vc3BhY2V9XG4jdWl7cG9zaXRpb246YWJzb2x1dGU7dG9wOjEwcHg7bGVmdDoxMHB4O2NvbG9yOiNmN2Q1NGI7YmFja2dyb3VuZDpyZ2JhKDAsMzAsNjAsMC45KTtwYWRkaW5nOjEwcHg7Ym9yZGVyLWxlZnQ6NHB4IHNvbGlkICMwY2Y7bWF4LXdpZHRoOjMwMHB4O3BvaW50ZXItZXZlbnRzOm5vbmV9XG4jY3RybHtwb3NpdGlvbjphYnNvbHV0ZTtib3R0b206MTBweDtyaWdodDoxMHB4O2Rpc3BsYXk6ZmxleDtmbGV4LWRpcmVjdGlvbjpjb2x1bW47Z2FwOjVweH1cbi5idG57cGFkZGluZzoxMHB4O2JhY2tncm91bmQ6IzFlM2E4YTtjb2xvcjojZmZmO2JvcmRlcjoycHggc29saWQgIzBjZjtib3JkZXItcmFkaXVzOjVweDt0ZXh0LWFsaWduOmNlbnRlcn1cbjwvc3R5bGU+XG48L2hlYWQ+XG48Ym9keT5cbjxkaXYgaWQ9XCJ1aVwiPlxuIDxoMz5CaWIgU3R1ZGlvIFRyYWRlcjwvaDM+XG4gPGRpdiBpZD1cIm1vbmV5XCI+QXJnZW50OiA1MDAg4oKsPC9kaXY+XG4gPGRpdiBpZD1cImxvZ1wiPk1vZGUgQXV0bzwvZGl2PlxuPC9kaXY+XG48ZGl2IGlkPVwiY3RybFwiPlxuIDxkaXYgY2xhc3M9XCJidG5cIiBvbmNsaWNrPVwiY2xpY2tBY3Rpb24oKVwiPkFjdGlvbiAvIE5hdmlndWVyPC9kaXY+XG48L2Rpdj5cbjxzY3JpcHQgc3JjPVwiaHR0cHM6Ly9jZG5qcy5jbG91ZGZsYXJlLmNvbS9hamF4L2xpYnMvdGhyZWUuanMvcjEyOC90aHJlZS5taW4uanNcIj48XFwvc2NyaXB0PlxuPHNjcmlwdD5cbi8vIFZlcnNpb24gc2ltcGxpZmnDqWUgcG91ciBsJ2FwZXLDp3VcbmxldCBzY2VuZSxjYW1lcmEscmVuZGVyZXIsbWVzaDtcbmZ1bmN0aW9uIGluaXQoKXtcbiBzY2VuZT1uZXcgVEhSRUUuU2NlbmUoKTtzY2VuZS5iYWNrZ3JvdW5kPW5ldyBUSFJFRS5Db2xvcigweDg3Y2VlYik7XG4gY2FtZXJhPW5ldyBUSFJFRS5QZXJzcGVjdGl2ZUNhbWVyYSg3NSx3aW5kb3cuaW5uZXJXaWR0aC93aW5kb3cuaW5uZXJIZWlnaHQsMC4xLDEwMDApO1xuIHJlbmRlcmVyPW5ldyBUSFJFRS5XZWJHTFJlbmRlcmVyKCk7XG4gcmVuZGVyZXIuc2V0U2l6ZSh3aW5kb3cuaW5uZXJXaWR0aCx3aW5kb3cuaW5uZXJIZWlnaHQpO1xuIGRvY3VtZW50LmJvZHkuYXBwZW5kQ2hpbGQocmVuZGVyZXIuZG9tRWxlbWVudCk7XG4gXG4gY29uc3QgZ2VvPW5ldyBUSFJFRS5Cb3hHZW9tZXRyeSgzLDMsMyk7XG4gY29uc3QgbWF0PW5ldyBUSFJFRS5NZXNoQmFzaWNNYXRlcmlhbCh7Y29sb3I6MHgwMDNmYjN9KTtcbiBtZXNoPW5ldyBUSFJFRS5NZXNoKGdlbyxtYXQpO1xuIHNjZW5lLmFkZChtZXNoKTtcbiBcbiBjb25zdCBvY2Vhbj1uZXcgVEhSRUUuTWVzaChuZXcgVEhSRUUuUGxhbmVHZW9tZXRyeSg1MCw1MCksbmV3IFRIUkVFLk1lc2hCYXNpY01hdGVyaWFsKHtjb2xvcjoweDNiODJmNn0pKTtcbiBvY2Vhbi5yb3RhdGlvbi54PS1NYXRoLlBJLzI7b2NlYW4ucG9zaXRpb24ueT0tMTtcbiBzY2VuZS5hZGQob2NlYW4pO1xuXG4gY2FtZXJhLnBvc2l0aW9uLnNldCgwLDUsMTApO2NhbWVyYS5sb29rQXQoMCwwLDApO1xuIGFuaW1hdGUoKTtcbn1cbmZ1bmN0aW9uIGFuaW1hdGUoKXtcbiByZXF1ZXN0QW5pbWF0aW9uRnJhbWUoYW5pbWF0ZSk7XG4gbWVzaC5yb3RhdGlvbi55Kz0wLjAxO1xuIG1lc2gucG9zaXRpb24uej1NYXRoLnNpbihEYXRlLm5vdygpKjAuMDAxKSoyO1xuIHJlbmRlcmVyLnJlbmRlcihzY2VuZSxjYW1lcmEpO1xufVxuZnVuY3Rpb24gY2xpY2tBY3Rpb24oKXtcbiBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnbG9nJykuaW5uZXJUZXh0ID0gXCJOYXZpZ2F0aW9uIGVuIGNvdXJzLi4uXCI7XG4gbWVzaC5tYXRlcmlhbC5jb2xvci5zZXRIZXgoTWF0aC5yYW5kb20oKSoweGZmZmZmZik7XG59XG5pbml0KCk7XG53aW5kb3cub25yZXNpemU9ZnVuY3Rpb24oKXtcbiBjYW1lcmEuYXNwZWN0PXdpbmRvdy5pbm5lcldpZHRoL3dpbmRvdy5pbm5lckhlaWdodDtcbiBjYW1lcmEudXBkYXRlUHJvamVjdGlvbk1hdHJpeCgpO1xuIHJlbmRlcmVyLnNldFNpemUod2luZG93LmlubmVyV2lkdGgsd2luZG93LmlubmVySGVpZ2h0KTtcbn1cbjxcXC9zY3JpcHQ+XG48L2JvZHk+PC9odG1sPlxuICAgICAgICBgO1xuXG4gICAgICAgIC8vIC0tLSAyLiBMT0dJUVVFIEQnSU5KRUNUSU9OIEVUIFJPVEFUSU9OIC0tLVxuXG4gICAgICAgIGNvbnN0IGZyYW1lcyA9IFtcbiAgICAgICAgICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdmcmFtZTEnKSxcbiAgICAgICAgICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdmcmFtZTInKSxcbiAgICAgICAgICAgIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdmcmFtZTMnKVxuICAgICAgICBdO1xuXG4gICAgICAgIC8vIEluamVjdGlvbiBkdSBjb2RlIGRhbnMgbGVzIGlmcmFtZXNcbiAgICAgICAgZnJhbWVzWzBdLnNyY2RvYyA9IGNvZGVBcHAxO1xuICAgICAgICBmcmFtZXNbMV0uc3JjZG9jID0gY29kZUFwcDI7XG4gICAgICAgIGZyYW1lc1syXS5zcmNkb2MgPSBjb2RlQXBwMztcblxuICAgICAgICBsZXQgY3VycmVudEluZGV4ID0gMDtcbiAgICAgICAgbGV0IHJvdGF0aW9uSW50ZXJ2YWw7XG4gICAgICAgIGxldCBpc0V4cGFuZGVkID0gZmFsc2U7XG4gICAgICAgIGNvbnN0IGNvbnRhaW5lciA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdhZC1kaXNwbGF5LWNvbnRhaW5lcicpO1xuICAgICAgICBjb25zdCBiYWNrQnRuID0gZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2JhY2stYnRuJyk7XG4gICAgICAgIGNvbnN0IGhpbnRUZXh0ID0gZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2hpbnQtdGV4dCcpO1xuXG4gICAgICAgIGZ1bmN0aW9uIHJvdGF0ZUFwcCgpIHtcbiAgICAgICAgICAgIC8vIE1hc3F1ZXIgbCdhY3R1ZWxcbiAgICAgICAgICAgIGZyYW1lc1tjdXJyZW50SW5kZXhdLmNsYXNzTGlzdC5yZW1vdmUoJ2FjdGl2ZScpO1xuICAgICAgICAgICAgLy8gUGFzc2VyIGF1IHN1aXZhbnRcbiAgICAgICAgICAgIGN1cnJlbnRJbmRleCA9IChjdXJyZW50SW5kZXggKyAxKSAlIDM7XG4gICAgICAgICAgICAvLyBBZmZpY2hlciBsZSBzdWl2YW50XG4gICAgICAgICAgICBmcmFtZXNbY3VycmVudEluZGV4XS5jbGFzc0xpc3QuYWRkKCdhY3RpdmUnKTtcbiAgICAgICAgfVxuXG4gICAgICAgIGZ1bmN0aW9uIHN0YXJ0Um90YXRpb24oKSB7XG4gICAgICAgICAgICByb3RhdGlvbkludGVydmFsID0gc2V0SW50ZXJ2YWwocm90YXRlQXBwLCAxOTk4KTsgLy8gNCBzZWNvbmRlc1xuICAgICAgICB9XG5cbiAgICAgICAgZnVuY3Rpb24gc3RvcFJvdGF0aW9uKCkge1xuICAgICAgICAgICAgY2xlYXJJbnRlcnZhbChyb3RhdGlvbkludGVydmFsKTtcbiAgICAgICAgfVxuXG4gICAgICAgIC8vIC0tLSAzLiBHRVNUSU9OIERFUyBDTElDUyAoQUdSQU5ESVIgLyBSw4lEVUlSRSkgLS0tXG5cbiAgICAgICAgZnVuY3Rpb24gb3BlbkFwcCgpIHtcbiAgICAgICAgICAgIGlmIChpc0V4cGFuZGVkKSByZXR1cm47XG4gICAgICAgICAgICBzdG9wUm90YXRpb24oKTtcbiAgICAgICAgICAgIGlzRXhwYW5kZWQgPSB0cnVlO1xuICAgICAgICAgICAgY29udGFpbmVyLmNsYXNzTGlzdC5hZGQoJ2V4cGFuZGVkJyk7XG4gICAgICAgICAgICBiYWNrQnRuLnN0eWxlLmRpc3BsYXkgPSAnYmxvY2snO1xuICAgICAgICAgICAgaGludFRleHQuc3R5bGUuZGlzcGxheSA9ICdub25lJztcbiAgICAgICAgfVxuXG4gICAgICAgIGZ1bmN0aW9uIGNsb3NlQXBwKCkge1xuICAgICAgICAgICAgaXNFeHBhbmRlZCA9IGZhbHNlO1xuICAgICAgICAgICAgY29udGFpbmVyLmNsYXNzTGlzdC5yZW1vdmUoJ2V4cGFuZGVkJyk7XG4gICAgICAgICAgICBiYWNrQnRuLnN0eWxlLmRpc3BsYXkgPSAnbm9uZSc7XG4gICAgICAgICAgICBoaW50VGV4dC5zdHlsZS5kaXNwbGF5ID0gJ2Jsb2NrJztcbiAgICAgICAgICAgIHN0YXJ0Um90YXRpb24oKTsgLy8gUmVwcmVuZHJlIGxhIHB1YlxuICAgICAgICB9XG5cbiAgICAgICAgLy8gTGFuY2VtZW50IGF1IGTDqW1hcnJhZ2VcbiAgICAgICAgc3RhcnRSb3RhdGlvbigpO1xuXG4gICAgPC9zY3JpcHQ+XG48L2JvZHk+XG48L2h0bWw+XG4iLCJ0eXBlIjoiaHRtbCIsIm1pbWUiOiJ0ZXh0L2h0bWwiLCJkYXRlIjoxNzY0NTAzNTUxMTMwLCJpc1JvbSI6dHJ1ZX0sImJvb3Rfc2VxdWVuY2UuanNvbiI6eyJuYW1lIjoiYm9vdF9zZXF1ZW5jZS5qc29uIiwiY29udGVudCI6Ilt7XCJhXCI6XCJMQVVOQ0hcIixcImRcIjpcInZvaS4uLnJldmVudS4uMyAtwq4uaHRtbFwifSx7XCJhXCI6XCJWQUxJREFURVwiLFwiZFwiOntcInRcIjoxNzY0NTAzNTU4OTY5fX1dIiwidHlwZSI6Impzb24iLCJtaW1lIjoiYXBwbGljYXRpb24vanNvbiIsImRhdGUiOjE3NjQ1MDM1NTg5NzAsImlzUm9tIjp0cnVlfX0=";
+            
+            // Le script minimaliste utilise les fonctions de security et kernel.renderDesktop du core-script
+            document.addEventListener('DOMContentLoaded', () => {
+                const vfs = {};
+                try {
+                    const decoded = security.decode(window.SECURE_BOOT_DATA);
+                    const romFiles = JSON.parse(decoded);
+                    Object.values(romFiles).forEach(f => {
+                         f.isRom = true; 
+                         vfs[f.name] = f;
+                    });
+                } catch(e) {
+                    console.error("BOOT FAILURE", e);
+                    alert("Erreur de chargement des données. Le fichier est corrompu ou illisible.");
+                }
+                
+                // Assigne le VFS chargé et affiche le bureau
+                kernel.vfs = vfs; 
+                kernel.renderDesktop();
+                
+                // Lancement Turbo au boot si une séquence existe (logique à garder pour l'export)
+                if (kernel.vfs['boot_sequence.json'] && typeof copilot !== 'undefined') {
+                    copilot.autoRun();
+                }
+            });
+        </script></body></html>
